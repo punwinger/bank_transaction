@@ -21,7 +21,7 @@ public class InMemoryTransactionRepository implements TransactionRepository {
     // 二级索引：id -> Transaction
     private final Map<Long, Transaction> idIndex = new ConcurrentHashMap<>();
 
-    private int maxSize = 20000000;
+    private int maxSize = 9000000;
 
     public void setMaxSize(int size) {
         this.maxSize = size;

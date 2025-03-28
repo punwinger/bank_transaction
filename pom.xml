@@ -74,6 +74,9 @@
                             <artifactId>lombok</artifactId>
                         </exclude>
                     </excludes>
+		 <jvmArguments>
+                    -Xmx4g -Xms4g
+                </jvmArguments>
                 </configuration>
             </plugin>
 

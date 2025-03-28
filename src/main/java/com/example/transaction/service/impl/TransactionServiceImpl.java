@@ -210,7 +210,11 @@ public class TransactionServiceImpl implements TransactionService {
         ReadWriteLock lock = getUserLock(userName);
         lock.readLock().lock();
         try {
-            return transactionRepository.findAllByUserName(userName, pageable);
+            Page<Transaction> result = transactionRepository.findAllByUserName(userName, pageable);
+            if (result.isEmpty()) {
+                throw new TransactionNotFoundException("未找到用户 %s 的交易记录");
+            }
+            return result;
         } finally {
             lock.readLock().unlock();
         }

@@ -1,0 +1,13 @@
+users,amount,type,desc
+Test1,100.00,DEPOSIT,test deposit
+Test1,200.00,WITHDRAWAL,test withdrawal
+Test1,300.00,TRANSFER,test transfer
+Test2,100.00,DEPOSIT,test deposit
+Test2,200.00,WITHDRAWAL,test withdrawal
+Test2,300.00,TRANSFER,test transfer
+Test3,100.00,DEPOSIT,test deposit
+Test3,200.00,WITHDRAWAL,test withdrawal
+Test3,300.00,TRANSFER,test transfer
+Test4,100.00,DEPOSIT,test deposit
+Test4,200.00,WITHDRAWAL,test withdrawal
+Test4,300.00,TRANSFER,test transfer
