@@ -13,6 +13,11 @@
 - `spring-boot-starter-test`：用于测试 Spring Boot 应用程序
 - `junit-jupiter`：JUnit 5 测试框架
 - `mockito-core`：用于模拟对象的测试框架
+- `lombok`: 用于简化类的构造函数声明
+- `spring-data-commons`: 用于page类，分页参数
+- `spring-boot-starter-validation`: 用于校验的声明
+- `spring-boot-starter-cache`: 用于cache
+
 
 ## 运行项目
 ### 1. 使用 Maven 运行
@@ -21,35 +26,39 @@
 mvn spring-boot:run
 ```
 ## API 说明
-创建交易
-- URL：/api/transactions
+创建交易(用于指定用户创建交易)
+- URL：/api/v1/users/${userName}/transactions
 - 方法：POST
 - 请求体：
 ```json
 {
-    "description": "Test Transaction",
-    "amount": 100.0
+  "userName": "testUser",
+  "amount": 100.00,
+  "type": "DEPOSIT",
+  "description": "测试存款"
 }
 ```
-获取交易
-- URL：/api/transactions/{id}
+获取交易(用于获取指定用户的某个交易)
+- URL：/api/v1/users/${userName}/transactions/{id}
 - 方法：GET
 
-获取所有交易
-- URL：/api/transactions
+获取所有交易(获取指定用户的部份分页交易)
+- URL：/api/v1/users/${userName}/transactions?page=${page}&size=${size}
 - 方法：GET
 
 删除交易
-- URL：/api/transactions/{id}
+- URL：/api/v1/users/${userName}/transactions/{id}
 - 方法：DELETE
 
 更新交易
-- URL：/api/transactions/{id}
+- URL：/api/v1/users/${userName}/transactions/{id}
 - 方法：PUT
 - 请求体：
 ```json
 {
-    "description": "Updated Transaction",
-    "amount": 200.0
+  "userName": "testUser",
+  "amount": 9999.11,
+  "type": "DEPOSIT",
+  "description": "改为存款"
 }
 ```

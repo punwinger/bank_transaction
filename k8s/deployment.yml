@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bank-transaction-service
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: bank-transaction-service
+  template:
+    metadata:
+      labels:
+        app: bank-transaction-service
+    spec:
+      containers:
+      - name: bank-transaction-service
+        image: bank-transaction-service:latest
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bank-transaction-service
+spec:
+  selector:
+    app: bank-transaction-service
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+  type: LoadBalancer 
