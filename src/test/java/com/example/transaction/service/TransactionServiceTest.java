@@ -1,7 +1,10 @@
 package com.example.transaction.service;
 
 import com.example.transaction.dto.TransactionRequest;
+import com.example.transaction.exception.DuplicateTransactionException;
+import com.example.transaction.exception.PageOutOfRangeException;
 import com.example.transaction.exception.TransactionNotFoundException;
+import com.example.transaction.exception.TransactionTooManyException;
 import com.example.transaction.model.Transaction;
 import com.example.transaction.repository.TransactionRepository;
 import com.example.transaction.service.impl.TransactionServiceImpl;
@@ -86,14 +89,14 @@ class TransactionServiceTest {
     @Test
     void updateTransaction_ShouldUpdateSuccessfully() {
         // 准备测试数据
-        String transactionId = "test-id";
+        long transactionId = 1;
         Transaction existingTransaction = Transaction.builder()
                 .id(transactionId)
                 .userName(TEST_USER)
                 .amount(new BigDecimal("100.00"))
                 .type(Transaction.TransactionType.DEPOSIT)
                 .description("原始交易")
-                .timestamp(LocalDateTime.now())
+                .createTimestamp(System.currentTimeMillis())
                 .build();
 
         when(transactionRepository.findByUserNameAndId(TEST_USER, transactionId))
@@ -109,7 +112,7 @@ class TransactionServiceTest {
         updateRequest.setDescription("更新的测试交易");
 
         // 执行测试
-        Transaction updated = transactionService.updateTransaction(TEST_USER, transactionId, updateRequest);
+        Transaction updated = transactionService.updateTransaction(TEST_USER, String.valueOf(transactionId), updateRequest);
 
         // 验证结果
         assertNotNull(updated);
@@ -124,17 +127,17 @@ class TransactionServiceTest {
     @Test
     void deleteTransaction_ShouldDeleteSuccessfully() {
         // 准备测试数据
-        String transactionId = "test-id";
+        long transactionId = 1;
         Transaction existingTransaction = Transaction.builder()
                 .id(transactionId)
                 .userName(TEST_USER)
                 .build();
 
-        when(transactionRepository.findByUserNameAndId(TEST_USER, transactionId))
+        when(transactionRepository.deleteByUserNameAndId(TEST_USER, transactionId))
                 .thenReturn(Optional.of(existingTransaction));
 
         // 执行测试
-        assertDoesNotThrow(() -> transactionService.deleteTransaction(TEST_USER, transactionId));
+        assertDoesNotThrow(() -> transactionService.deleteTransaction(TEST_USER, String.valueOf(transactionId)));
 
         // 验证结果
         verify(transactionRepository).deleteByUserNameAndId(TEST_USER, transactionId);
@@ -143,19 +146,19 @@ class TransactionServiceTest {
     @Test
     void deleteTransaction_ShouldThrowException_WhenNotFound() {
         // 准备测试数据
-        String transactionId = "non-existent-id";
-        when(transactionRepository.findByUserNameAndId(TEST_USER, transactionId))
+        long transactionId = 2;
+        when(transactionRepository.deleteByUserNameAndId(TEST_USER, transactionId))
                 .thenReturn(Optional.empty());
 
         // 执行测试和验证
         assertThrows(TransactionNotFoundException.class, 
-            () -> transactionService.deleteTransaction(TEST_USER, transactionId));
+            () -> transactionService.deleteTransaction(TEST_USER, String.valueOf(transactionId)));
     }
 
     @Test
     void getTransaction_ShouldReturnTransaction() {
         // 准备测试数据
-        String transactionId = "test-id";
+        long transactionId = 1;
         Transaction transaction = Transaction.builder()
                 .id(transactionId)
                 .userName(TEST_USER)
@@ -165,7 +168,7 @@ class TransactionServiceTest {
                 .thenReturn(Optional.of(transaction));
 
         // 执行测试
-        Transaction found = transactionService.getTransaction(TEST_USER, transactionId);
+        Transaction found = transactionService.getTransaction(TEST_USER, String.valueOf(transactionId));
 
         // 验证结果
         assertNotNull(found);
@@ -176,13 +179,13 @@ class TransactionServiceTest {
     @Test
     void getTransaction_ShouldThrowException_WhenNotFound() {
         // 准备测试数据
-        String transactionId = "non-existent-id";
+        long transactionId = 33;
         when(transactionRepository.findByUserNameAndId(TEST_USER, transactionId))
                 .thenReturn(Optional.empty());
 
         // 执行测试和验证
         assertThrows(TransactionNotFoundException.class, 
-            () -> transactionService.getTransaction(TEST_USER, transactionId));
+            () -> transactionService.getTransaction(TEST_USER, String.valueOf(transactionId)));
     }
 
     @Test
@@ -191,9 +194,9 @@ class TransactionServiceTest {
         PageRequest pageRequest = PageRequest.of(0, 3);
         Page<Transaction> expectedPage = new PageImpl<>(
             Arrays.asList(
-                Transaction.builder().id("1").userName(TEST_USER).build(),
-                Transaction.builder().id("2").userName(TEST_USER).build(),
-                Transaction.builder().id("3").userName(TEST_USER).build()
+                Transaction.builder().id(1).userName(TEST_USER).build(),
+                Transaction.builder().id(2).userName(TEST_USER).build(),
+                Transaction.builder().id(3).userName(TEST_USER).build()
             ),
             pageRequest,
             5
@@ -230,5 +233,26 @@ class TransactionServiceTest {
         // 执行测试和验证
         assertThrows(IllegalArgumentException.class,
             () -> transactionService.createTransaction(sampleRequest));
+    }
+
+    @Test
+    void createTransaction_ShouldThrowException_WhenDuplicateTransaction() {
+        // 准备测试数据
+        Transaction existingTransaction = Transaction.builder()
+                .id(1L)
+                .userName(TEST_USER)
+                .amount(sampleRequest.getAmount())
+                .type(sampleRequest.getType())
+                .description(sampleRequest.getDescription())
+                .toUserName(sampleRequest.getToUserName())
+                .createTimestamp(System.currentTimeMillis())
+                .build();
+
+        when(transactionRepository.findLastByUserName(TEST_USER))
+                .thenReturn(Optional.of(existingTransaction));
+
+        // 执行测试和验证
+        assertThrows(DuplicateTransactionException.class,
+                () -> transactionService.createTransaction(sampleRequest));
     }
 } 

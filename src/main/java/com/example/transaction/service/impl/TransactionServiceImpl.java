@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -33,7 +34,6 @@ public class TransactionServiceImpl implements TransactionService {
     @Override
     public Transaction createTransaction(TransactionRequest request) {
         validateTransactionRequest(request);
-        checkDuplicateTransaction(request);
 
         long id = idGenerator.getAndIncrement();
         long curTs = System.currentTimeMillis();
@@ -51,6 +51,7 @@ public class TransactionServiceImpl implements TransactionService {
         ReadWriteLock lock = getUserLock(request.getUserName());
         lock.writeLock().lock();
         try {
+            checkDuplicateTransaction(request);
             return transactionRepository.save(transaction);
         } finally {
             lock.writeLock().unlock();
@@ -74,19 +75,14 @@ public class TransactionServiceImpl implements TransactionService {
         long currentTime = System.currentTimeMillis();
         
         // 检查是否存在相同结构的交易
-        Page<Transaction> recentTransactions = transactionRepository.findAllByUserName(
-            request.getUserName(), 
-            org.springframework.data.domain.PageRequest.of(0, 1)
-        );
+        Optional<Transaction> recentTransaction = transactionRepository.findLastByUserName(request.getUserName());
 
-        boolean hasDuplicate = recentTransactions.getContent().stream()
-            .anyMatch(transaction -> 
-                transaction.getCreateTimestamp() <= currentTime &&  // 只检查当前毫秒之前的交易
-                Objects.equals(transaction.getAmount(), request.getAmount()) &&
-                Objects.equals(transaction.getType(), request.getType()) &&
-                Objects.equals(transaction.getToUserName(), request.getToUserName()) &&
-                Objects.equals(transaction.getDescription(), request.getDescription())
-            );
+        boolean hasDuplicate = recentTransaction.isPresent() &&
+                recentTransaction.get().getCreateTimestamp() == currentTime && // 只检查上一个1毫秒之内的交易
+                Objects.equals(recentTransaction.get().getAmount(), request.getAmount()) &&
+                Objects.equals(recentTransaction.get().getType(), request.getType()) &&
+                Objects.equals(recentTransaction.get().getToUserName(), request.getToUserName()) &&
+                Objects.equals(recentTransaction.get().getDescription(), request.getDescription());
 
         if (hasDuplicate) {
             throw new DuplicateTransactionException(
@@ -138,7 +134,7 @@ public class TransactionServiceImpl implements TransactionService {
     }
 
     @Override
-    @CacheEvict(value = "transactions", key = "#userName + '-' + #id")
+    //@CacheEvict(value = "transactions", key = "#userName + '-' + #id")
     public Transaction updateTransaction(String userName, String id, TransactionRequest request) {
         if (!userName.equals(request.getUserName())) {
             throw new IllegalArgumentException("不允许更新交易用户名");
@@ -169,7 +165,7 @@ public class TransactionServiceImpl implements TransactionService {
     }
 
     @Override
-    @CacheEvict(value = "transactions", key = "#userName + '-' + #id")
+    //@CacheEvict(value = "transactions", key = "#userName + '-' + #id")
     public void deleteTransaction(String userName, String id) {
         ReadWriteLock lock = getUserLock(userName);
         lock.writeLock().lock();
@@ -183,20 +179,24 @@ public class TransactionServiceImpl implements TransactionService {
     }
 
     @Override
-    @Cacheable(value = "transactions", key = "#userName + '-' + #id")
+    //@Cacheable(value = "transactions", key = "#userName + '-' + #id")
     public Transaction getTransaction(String userName, String id) {
         if (!StringUtils.hasText(userName)) {
             throw new IllegalArgumentException("用户名不能为空");
         }
 
-        // 这里应该不需要加锁，目前不考虑事务性
-        return transactionRepository.findByUserNameAndId(userName, transformId(id))
-                .orElseThrow(() -> new TransactionNotFoundException(
-                    String.format("未找到用户 %s 的交易记录: %s", userName, id)));
+        ReadWriteLock lock = getUserLock(userName);
+        lock.readLock().lock();
+        try {
+            return transactionRepository.findByUserNameAndId(userName, transformId(id))
+                    .orElseThrow(() -> new TransactionNotFoundException(
+                            String.format("未找到用户 %s 的交易记录: %s", userName, id)));
+        } finally {
+            lock.readLock().unlock();
+        }
     }
 
     @Override
-    @Cacheable(value = "transactions", key = "#userName + '-all-' + #pageable.pageNumber + '-' + #pageable.pageSize")
     public Page<Transaction> getAllTransactions(String userName, Pageable pageable) {
         if (!StringUtils.hasText(userName)) {
             throw new IllegalArgumentException("用户名不能为空");

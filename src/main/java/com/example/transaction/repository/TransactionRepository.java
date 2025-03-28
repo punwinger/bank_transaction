@@ -11,4 +11,5 @@ public interface TransactionRepository {
     Optional<Transaction> findByUserNameAndId(String userName, long id);
     Optional<Transaction> deleteByUserNameAndId(String userName, long id);
     Page<Transaction> findAllByUserName(String userName, Pageable pageable);
+    Optional<Transaction> findLastByUserName(String userName);
 } 

@@ -2,7 +2,6 @@ package com.example.transaction.repository.impl;
 
 import com.example.transaction.exception.PageOutOfRangeException;
 import com.example.transaction.exception.TransactionTooManyException;
-import com.example.transaction.exception.UserTooManyException;
 import com.example.transaction.model.Transaction;
 import com.example.transaction.repository.TransactionRepository;
 import org.springframework.data.domain.Page;
@@ -13,17 +12,25 @@ import org.springframework.stereotype.Repository;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.stream.Collectors;
 
 @Repository
 public class InMemoryTransactionRepository implements TransactionRepository {
     // 主存储：userName -> (id -> Transaction)
     private final Map<String, ConcurrentSkipListMap<Long, Transaction>> store = new ConcurrentHashMap<>();
 
+    // 二级索引：id -> Transaction
+    private final Map<Long, Transaction> idIndex = new ConcurrentHashMap<>();
+
+    private int maxSize = 20000000;
+
+    public void setMaxSize(int size) {
+        this.maxSize = size;
+    }
+
     @Override
     public Transaction save(Transaction transaction) {
-        if (store.size() >= 100000000 && !store.containsKey(transaction.getUserName())) {
-            throw new UserTooManyException("交易用户超过上限100000000");
+        if (idIndex.size() > maxSize) {
+            throw new TransactionTooManyException("交易总数不能超过最大值:" + maxSize);
         }
 
         // 获取用户的交易存储
@@ -32,29 +39,37 @@ public class InMemoryTransactionRepository implements TransactionRepository {
             k -> new ConcurrentSkipListMap<>()
         );
 
-        if (userTransactions.size() >= 100000000) {
-            throw new TransactionTooManyException("单个用户的交易超过上限100000000");
-        }
-
         // 保存交易
         userTransactions.put(transaction.getId(), transaction);
+
+        idIndex.put(transaction.getId(), transaction);
         return transaction;
     }
 
     @Override
     public Optional<Transaction> findByUserNameAndId(String userName, long id) {
-        Map<Long, Transaction> userTransactions = store.get(userName);
-        if (userTransactions == null) {
+        Transaction transaction = idIndex.get(id);
+        if (transaction == null || !transaction.getUserName().equals(userName)) {
             return Optional.empty();
         }
-        return Optional.ofNullable(userTransactions.get(id));
+        return Optional.of(transaction);
     }
 
     @Override
+    //non thread-safe
     public Optional<Transaction> deleteByUserNameAndId(String userName, long id) {
         Map<Long, Transaction> userTransactions = store.get(userName);
         if (userTransactions != null) {
-            return Optional.ofNullable(userTransactions.remove(id));
+            Transaction oldTransaction = userTransactions.remove(id);
+
+            if (oldTransaction != null) {
+                idIndex.remove(id);
+                if (userTransactions.isEmpty()) {
+                    store.remove(userName);
+                }
+            }
+            return Optional.ofNullable(oldTransaction);
+
         }
         return Optional.empty();
     }
@@ -92,5 +107,15 @@ public class InMemoryTransactionRepository implements TransactionRepository {
             pageContent,
             pageable, totalSize
         );
+    }
+
+    @Override
+    public Optional<Transaction> findLastByUserName(String userName) {
+        ConcurrentSkipListMap<Long, Transaction> userTransactions = store.get(userName);
+        if (userTransactions == null || userTransactions.isEmpty()) {
+            return Optional.empty();
+        }
+
+        return Optional.ofNullable(userTransactions.lastEntry().getValue());
     }
 } 
